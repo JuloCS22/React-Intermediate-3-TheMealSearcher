@@ -1,89 +1,37 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import "./styles.css";
-
-// Refaire un truc plus joli que ça !!!!!!!!
+import { Navbar } from "./components/Navbar";
+import { SearchBar } from "./components/SearchBar";
+import { CategoryFilter } from "./components/CategoryFilter";
+import { MealCard } from "./components/MealCard";
+import { MealModal } from "./components/MealModal";
+import { useCategories } from "./hooks/useCategories";
+import { useMealSearch } from "./hooks/useMealSearch";
+import { useFavorites } from "./hooks/useFavorites";
 
 export default function App() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [data, setData] = useState("");
-  const [mealModal, setMealModal] = useState([]);
-  const [mealName, setMealName] = useState("");
-  const [mealId, setMealId] = useState("");
-  const [favoritesMeals, setFavoritesMeals] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [whatIs, setWhatIs] = useState("search.php?s=");
+  const [query, setQuery] = useState("");
+  const [searchMode, setSearchMode] = useState("name");
+  const [mealId, setMealId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFavoriteOn, setIsFavoriteOn] = useState(false);
-  const [favId, setFavId] = useState(() => {
-    const savedMeals = localStorage.getItem("favId");
-    try {
-      return savedMeals ? JSON.parse(savedMeals) : [];
-    } catch (error) {
-      console.log("Error during parsing.", error);
-      return [];
-    }
-  });
 
-  function fetchMeals() {
-    setLoading(true);
-    const fetchSearch = `https://www.themealdb.com/api/json/v1/1/${whatIs}${mealName}`;
-    fetch(fetchSearch)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Erreur dans la requête");
-        }
-        return response.json();
-      })
-      .then((data) => {
-        setData(data.meals);
-        setLoading(false);
-      })
-      .catch((error) => {
-        setError(error);
-        setLoading(false);
-      });
+  const { categories } = useCategories();
+  const { meals } = useMealSearch(query, searchMode);
+  const { favId, favoriteMeals, toggleFavorite, clearFavorites } = useFavorites(isFavoriteOn);
+
+  function handleNameSearch(e) {
+    setSearchMode("name");
+    setQuery(e.target.value);
   }
 
-  function fetchMealModal() {
-    setLoading(true);
-    const fetchSearch = `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${mealId}`;
-    fetch(fetchSearch)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Erreur dans la requête");
-        }
-        return response.json();
-      })
-      .then((mealModal) => {
-        setMealModal(mealModal.meals[0]);
-        setLoading(false);
-      })
-      .catch((error) => {});
+  function handleCategorySelect(e) {
+    setSearchMode("category");
+    setQuery(e.target.value);
   }
 
-  function fetchCategories() {
-    const fetchCategories =
-      "https://www.themealdb.com/api/json/v1/1/list.php?c=list";
-    fetch(fetchCategories)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Erreur dans la requête");
-        }
-        return response.json();
-      })
-      .then((categories) => {
-        setCategories(categories.meals);
-      })
-      .catch((error) => {
-        setError(error);
-      });
-  }
-
-  function handleClick(e) {
-    setMealModal(null);
-    setMealId(e);
+  function handleMealClick(id) {
+    setMealId(id);
     setIsModalOpen(true);
   }
 
@@ -92,217 +40,57 @@ export default function App() {
     setMealId(null);
   }
 
-  function handleNameChange(e) {
-    setWhatIs("search.php?s=");
-    setSelectedCategory("");
-    setMealName(e.target.value);
-  }
-
-  function handleCategoryChange(e) {
-    setWhatIs("filter.php?c=");
-    setMealName(e.target.value);
-  }
-
   function returnHome() {
     setIsFavoriteOn(false);
-    setMealModal(null);
-    setWhatIs("search.php?s=");
-    setMealName("");
+    setQuery("");
+    setSearchMode("name");
   }
 
-  function showFavoritesMeals() {
-    setFavoritesMeals([]);
-    setIsFavoriteOn(true);
-  }
-
-  function handleFavoriteMeal(e) {
-    if (favId.includes(e)) {
-      setFavId((prevFavId) => prevFavId.filter((id) => id !== e));
-    } else {
-      setFavId((prevFavId) => [...prevFavId, e]);
-    }
-  }
-
-  const showMeals =
-    data && !isFavoriteOn ? (
-      data.map((m) => (
-        <div key={m.idMeal} className="mealThumb">
-          <img
-            src={m.strMealThumb}
-            alt=""
-            onClick={() => handleClick(m.idMeal)}
-          />
-          {m.strMeal}
-        </div>
-      ))
-    ) : isFavoriteOn ? (
-      favoritesMeals.map((m) => (
-        <div key={m.idMeal} className="mealThumb">
-          <img
-            src={m.strMealThumb}
-            alt=""
-            onClick={() => handleClick(m.idMeal)}
-          />
-          {m.strMeal}
-        </div>
-      ))
-    ) : (
-      <p className="errortext">
-        Oops! <br /> Seems like there is an issue with the API
-      </p>
-    );
-
-  const formattedText =
-    mealModal && mealModal.strInstructions
-      ? mealModal.strInstructions.replace(/\.\s*/g, ".<br />")
-      : "";
-
-  const modalContent =
-    mealModal && isModalOpen ? (
-      <div id="myModal" className="modal" style={{ display: "block" }}>
-        <div className="modal-content">
-          <span className="close" onClick={() => closeModal()}>
-            &times;
-          </span>
-          <span
-            className={
-              favId.includes(mealModal.idMeal)
-                ? "modal-heart-red"
-                : "modal-heart-green"
-            }
-            onClick={() => handleFavoriteMeal(mealModal.idMeal)}
-          >
-            {favId.includes(mealModal.idMeal)
-              ? "Remove from favorites"
-              : "Add to favorites"}
-          </span>
-          <div key={mealModal.idMeal} className="modal-display">
-            <img src={mealModal.strMealThumb} alt="" className="modal-img" />
-            <h4>{mealModal.strMeal}</h4>
-            <h5>
-              This {mealModal.strCategory} meal is {mealModal.strArea}
-            </h5>
-            <p dangerouslySetInnerHTML={{ __html: formattedText }}></p>
-            <ul className="modal-list">
-              {Array.from({ length: 20 }, (_, index) => {
-                const ingredient = mealModal[`strIngredient${index + 1}`];
-                const measure = mealModal[`strMeasure${index + 1}`];
-
-                if (ingredient) {
-                  return (
-                    <li key={index}>
-                      {ingredient} - {measure}
-                    </li>
-                  );
-                }
-                return null; //
-              })}
-            </ul>
-          </div>
-        </div>
-      </div>
-    ) : (
-      <></>
-    );
-
-  useEffect(() => {
-    if (mealName) {
-      fetchMeals();
-    } else {
-      setData([]);
-    }
-
-    fetchCategories();
-
-    if (mealId) {
-      fetchMealModal();
-    }
-
-    if (isFavoriteOn && favId.length >= 0) {
-      const favoritePromises = favId.map((id) => {
-        return fetch(
-          `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${id}`
-        )
-          .then((response) => {
-            if (!response.ok) {
-              throw new Error("Erreur dans la requête");
-            }
-            return response.json();
-          })
-          .then((data) => data.meals[0])
-          .catch((error) => {
-            console.error("Erreur lors de la récupération du favori :", error);
-            return null;
-          });
-      });
-
-      Promise.all(favoritePromises).then((results) => {
-        const validFavorites = results.filter((meal) => meal !== null);
-        setFavoritesMeals(validFavorites);
-      });
-    }
-  }, [mealName, mealId, favId, isFavoriteOn]);
-
-  useEffect(() => {
-    localStorage.setItem("favId", JSON.stringify(favId));
-  }, [favId]);
+  const displayedMeals = isFavoriteOn ? favoriteMeals : meals;
 
   return (
     <div>
       <h1>TheMealSearcher</h1>
       <h2>V 0</h2>
 
-      <div className="navbar">
-        <button className="navbarButton" onClick={returnHome}>
-          HOME
-        </button>
-        <button className="navbarButton" onClick={showFavoritesMeals}>
-          FAVORITES
-          <span className={favId.length > 0 ? "fav-number" : ""}>
-            {favId.length > 0 ? favId.length.toString() : ""}
-          </span>
-        </button>
-      </div>
+      <Navbar
+        favCount={favId.length}
+        onHome={returnHome}
+        onFavorites={() => setIsFavoriteOn(true)}
+      />
 
-      {!isFavoriteOn ? (
-        <>
-          <div className="searchbar">
-            <input
-              type="text"
-              className="searchinput"
-              placeholder="search meal name"
-              value={whatIs === "search.php?s=" ? mealName : ""}
-              onChange={handleNameChange}
-            />
-          </div>
-          <div className="categoryfilter">
-            <h5>Search by Categories</h5>
-            {categories.map((c, index) => (
-              <button
-                id={index}
-                className="categorybutton"
-                value={c.strCategory}
-                onClick={handleCategoryChange}
-              >
-                {c.strCategory}
-              </button>
-            ))}
-          </div>
-        </>
+      {isFavoriteOn ? (
+        <div style={{ textAlign: "center" }}>
+          <button onClick={clearFavorites}>Delete all Favorites</button>
+        </div>
       ) : (
         <>
-          <button onClick={() => setFavId([])}>Delete all Favorites</button>
+          <SearchBar
+            value={searchMode === "name" ? query : ""}
+            onChange={handleNameSearch}
+          />
+          <CategoryFilter categories={categories} onSelect={handleCategorySelect} />
         </>
       )}
 
       <div className="mealsplace">
-        {showMeals}
-        {modalContent}
+        {displayedMeals &&
+          displayedMeals.map((meal) => (
+            <MealCard key={meal.idMeal} meal={meal} onClick={handleMealClick} />
+          ))}
+        {isModalOpen && (
+          <MealModal
+            mealId={mealId}
+            isFavorite={favId.includes(mealId)}
+            onClose={closeModal}
+            onToggleFavorite={toggleFavorite}
+          />
+        )}
       </div>
 
       <div className="thanks">
         This app is made with appetite thanks to{" "}
-        <a href="https://www.themealdb.com/api.php">TheMealDB.</a> <br />
+        <a href="https://www.themealdb.com/api.php">TheMealDB.</a>
       </div>
     </div>
   );
